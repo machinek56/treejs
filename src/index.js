@@ -1,5 +1,3 @@
-import ajax from './ajax';
-import './index.less';
 
 function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
@@ -34,15 +32,15 @@ function animation(duration, callback) {
   });
 }
 
+function findIndexEl (id, array) {
+  return array.findIndex(item => item.id === id)
+}
+
 export default function Tree(container, options) {
   const defaultOptions = {
     selectMode: 'checkbox',
     values: [],
     disables: [],
-    beforeLoad: null,
-    loaded: null,
-    url: null,
-    method: 'GET',
     closeDepth: null,
   };
   this.treeNodes = [];
@@ -52,6 +50,8 @@ export default function Tree(container, options) {
   this.willUpdateNodesById = {};
   this.container = container;
   this.options = Object.assign(defaultOptions, options);
+
+  this.myValues = []
 
   Object.defineProperties(this, {
     values: {
@@ -104,13 +104,7 @@ export default function Tree(container, options) {
     },
   });
 
-  if (this.options.url) {
-    this.load(data => {
-      this.init(data);
-    });
-  } else {
-    this.init(this.options.data);
-  }
+  this.init(this.options.data);
 }
 
 Tree.prototype.init = function(data) {
@@ -126,30 +120,12 @@ Tree.prototype.init = function(data) {
   this.nodesById = nodesById;
   this.leafNodesById = leafNodesById;
   this.render(this.treeNodes);
-  const {values, disables, loaded} = this.options;
+  const {values, disables} = this.options;
   if (values && values.length) defaultValues = values;
   defaultValues.length && this.setValues(defaultValues);
   if (disables && disables.length) defaultDisables = disables;
   defaultDisables.length && this.setDisables(defaultDisables);
-  loaded && loaded.call(this);
   console.timeEnd('init');
-};
-
-Tree.prototype.load = function(callback) {
-  console.time('load');
-  const {url, method, beforeLoad} = this.options;
-  ajax({
-    url,
-    method,
-    success: result => {
-      let data = result;
-      console.timeEnd('load');
-      if (beforeLoad) {
-        data = beforeLoad(result);
-      }
-      callback(data);
-    },
-  });
 };
 
 Tree.prototype.render = function(treeNodes) {
@@ -167,7 +143,7 @@ Tree.prototype.buildTree = function(nodes, depth) {
     nodes.forEach(node => {
       const liEle = Tree.createLiEle(
         node,
-        depth === this.options.closeDepth - 1
+        !node.open // open subtree or not
       );
       this.liElementsById[node.id] = liEle;
       let ulEle = null;
@@ -216,7 +192,11 @@ Tree.prototype.onItemClick = function(id) {
     this.setValue(id);
     this.updateLiElements();
   }
-  onChange && onChange.call(this);
+  onChange && onChange.call(this, {
+    name: node.name,
+    id: node.id,
+    checked: node.status === 2
+  });
   console.timeEnd('onItemClick');
 };
 
@@ -226,6 +206,16 @@ Tree.prototype.setValue = function(value) {
   const prevStatus = node.status;
   const status = prevStatus === 1 || prevStatus === 2 ? 0 : 2;
   node.status = status;
+
+  if (node.status !== 0) {
+    this.myValues.push({
+      name: node.name,
+      id: node.id
+    })
+  } else {
+    this.myValues.splice(findIndexEl(node.id, this.myValues), 1)
+  }
+
   this.markWillUpdateNode(node);
   this.walkUp(node, 'status');
   this.walkDown(node, 'status');
@@ -492,10 +482,13 @@ Tree.createLiEle = function(node, closed) {
   }
   const checkbox = document.createElement('span');
   checkbox.classList.add('treejs-checkbox');
+  checkbox.dataset.id = node.id
+  checkbox.value = node.name
+
   li.appendChild(checkbox);
   const label = document.createElement('span');
   label.classList.add('treejs-label');
-  const text = document.createTextNode(node.text);
+  const text = document.createTextNode(node.name);
   label.appendChild(text);
   li.appendChild(label);
   li.nodeId = node.id;
