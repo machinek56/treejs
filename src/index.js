@@ -204,7 +204,7 @@ Tree.prototype.setValue = function(value) {
   const node = this.nodesById[value];
   if (!node) return;
   const prevStatus = node.status;
-  const status = prevStatus === 1 || prevStatus === 2 ? 0 : 2;
+  const status = prevStatus === 2 ? 0 : 2;
   node.status = status;
 
   if (node.status !== 0) {
